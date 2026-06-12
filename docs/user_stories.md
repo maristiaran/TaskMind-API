@@ -192,4 +192,150 @@ Entonces el Usuario B únicamente recibe los datos asociados a su propio "uid"
 
 ---
 
+---
+
+## HU-03 — Filtrado de Tareas por Nivel de Prioridad
+
+### Descripción
+
+> **Como** usuario autenticado de TaskMind,  
+> **quiero** poder filtrar mis tareas por su nivel de prioridad (`low`, `medium`, `high`),  
+> **para** enfocarme en las tareas más relevantes sin tener que revisar toda mi lista.
+
+### Información Adicional
+
+| Campo             | Detalle                                                              |
+|-------------------|----------------------------------------------------------------------|
+| Endpoint          | `GET /api/v1/tasks?priority={low\|medium\|high}`                    |
+| Autenticación     | Requerida — Bearer Token (Firebase ID Token)                        |
+| Parámetro         | `priority` — query param opcional, tipo `Literal["low","medium","high"]` |
+| Persistencia      | Consulta filtrada en Firebase Firestore                             |
+| Modo de ejecución | Completamente asíncrono (`async/await`)                             |
+
+### Criterios de Aceptación
+
+---
+
+#### Escenario 1: Filtrado exitoso por prioridad "high"
+
+```gherkin
+Dado que el usuario está autenticado con un Firebase ID Token válido
+  Y que existen tareas con distintos niveles de prioridad asociadas a su "uid"
+Cuando el usuario envía GET /api/v1/tasks?priority=high
+Entonces la API responde con el código de estado HTTP 200 OK
+  Y el cuerpo contiene únicamente las tareas cuyo campo "priority" es "high"
+  Y todas las tareas retornadas pertenecen al usuario autenticado
+```
+
+---
+
+#### Escenario 2: Filtrado exitoso por prioridad "medium"
+
+```gherkin
+Dado que el usuario está autenticado con un Firebase ID Token válido
+  Y que existen tareas con distintos niveles de prioridad asociadas a su "uid"
+Cuando el usuario envía GET /api/v1/tasks?priority=medium
+Entonces la API responde con el código de estado HTTP 200 OK
+  Y el cuerpo contiene únicamente las tareas cuyo campo "priority" es "medium"
+```
+
+---
+
+#### Escenario 3: Filtrado exitoso por prioridad "low"
+
+```gherkin
+Dado que el usuario está autenticado con un Firebase ID Token válido
+  Y que existen tareas con distintos niveles de prioridad asociadas a su "uid"
+Cuando el usuario envía GET /api/v1/tasks?priority=low
+Entonces la API responde con el código de estado HTTP 200 OK
+  Y el cuerpo contiene únicamente las tareas cuyo campo "priority" es "low"
+```
+
+---
+
+#### Escenario 4: Listado de todas las tareas sin aplicar filtro
+
+```gherkin
+Dado que el usuario está autenticado con un Firebase ID Token válido
+Cuando el usuario envía GET /api/v1/tasks sin el parámetro "priority"
+Entonces la API responde con el código de estado HTTP 200 OK
+  Y el cuerpo contiene todas las tareas asociadas al usuario autenticado
+```
+
+---
+
+#### Escenario 5: Resultado vacío cuando no hay tareas para esa prioridad
+
+```gherkin
+Dado que el usuario está autenticado con un Firebase ID Token válido
+  Y que no existen tareas con prioridad "low" asociadas a su "uid"
+Cuando el usuario envía GET /api/v1/tasks?priority=low
+Entonces la API responde con el código de estado HTTP 200 OK
+  Y el cuerpo contiene una lista vacía []
+```
+
+---
+
+#### Escenario 6: Rechazo por valor de prioridad inválido
+
+```gherkin
+Dado que el usuario está autenticado con un Firebase ID Token válido
+Cuando el usuario envía GET /api/v1/tasks?priority=urgent
+Entonces la API responde con el código de estado HTTP 422 Unprocessable Entity
+  Y el cuerpo contiene un campo "detail" indicando que "urgent" no es un valor aceptado
+  Y los valores válidos ("low", "medium", "high") son informados en el mensaje de error
+  Y Firestore no es consultado
+```
+
+---
+
+#### Escenario 7: Rechazo por parámetro de prioridad vacío
+
+```gherkin
+Dado que el usuario está autenticado con un Firebase ID Token válido
+Cuando el usuario envía GET /api/v1/tasks?priority=
+Entonces la API responde con el código de estado HTTP 422 Unprocessable Entity
+  Y el cuerpo contiene un mensaje de error indicando que el parámetro no puede estar vacío
+```
+
+---
+
+#### Escenario 8: Rechazo por ausencia del header de autorización
+
+```gherkin
+Dado que la petición no incluye el header "Authorization"
+Cuando el usuario envía GET /api/v1/tasks?priority=high
+Entonces la API responde con el código de estado HTTP 401 Unauthorized
+  Y el cuerpo contiene el detalle "No autenticado."
+  Y Firestore no es consultado
+```
+
+---
+
+#### Escenario 9: Rechazo por token expirado
+
+```gherkin
+Dado que el usuario posee un Firebase ID Token que ha superado su tiempo de expiración
+  Y que incluye dicho token en el header "Authorization: Bearer <token>"
+Cuando el usuario envía GET /api/v1/tasks?priority=high
+Entonces la API responde con el código de estado HTTP 401 Unauthorized
+  Y el cuerpo contiene el detalle "La sesión ha expirado. Por favor, inicia sesión nuevamente."
+```
+
+---
+
+#### Escenario 10: Aislamiento de datos entre usuarios
+
+```gherkin
+Dado que el Usuario A y el Usuario B están autenticados con tokens válidos distintos
+  Y que el Usuario A tiene tareas con prioridad "high"
+  Y que el Usuario B no tiene tareas con prioridad "high"
+Cuando el Usuario B envía GET /api/v1/tasks?priority=high
+Entonces la API responde con el código de estado HTTP 200 OK
+  Y el cuerpo contiene una lista vacía []
+  Y las tareas del Usuario A no son accesibles para el Usuario B
+```
+
+---
+
 *Fin del documento de Historias de Usuario — TaskMind-API MVP*
