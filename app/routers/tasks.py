@@ -2,7 +2,7 @@ import asyncio
 import logging
 import os
 from datetime import datetime, timezone
-from typing import Annotated, Literal
+from typing import Annotated, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -161,15 +161,14 @@ async def create_task(
 async def list_tasks(
     owner_uid: Annotated[str, Depends(get_current_user_uid)],
     priority: Annotated[
-        Literal["low", "medium", "high"] | None,
-        Query(description="Filtra las tareas por nivel de prioridad. Valores aceptados: low, medium, high."),
+        Optional[Literal["low", "medium", "high"]],
+        Query(description="Filtrar por nivel de prioridad: 'low', 'medium' o 'high'."),
     ] = None,
 ) -> list[TaskResponse]:
-    """Retorna las tareas del usuario autenticado almacenadas en Firestore.
+    """Retorna las tareas del usuario autenticado.
 
-    Si se provee el parámetro `priority`, la consulta aplica un filtro
-    `.where('priority', '==', priority)` antes de ejecutar el stream.
-    Si se omite, retorna todas las tareas del usuario.
+    Si se provee el parámetro `priority`, aplica un filtro adicional en Firestore
+    para devolver únicamente las tareas con ese nivel de prioridad.
     """
     db = get_db()
     query = db.collection("tasks").where("owner_uid", "==", owner_uid)
@@ -177,11 +176,8 @@ async def list_tasks(
     if priority is not None:
         query = query.where("priority", "==", priority)
 
-    snapshots = query.stream()
-
     tasks: list[TaskResponse] = []
-    async for doc in snapshots:
-        data = doc.to_dict()
-        tasks.append(TaskResponse(id=doc.id, **data))
+    async for doc in query.stream():
+        tasks.append(TaskResponse(id=doc.id, **doc.to_dict()))
 
     return tasks
